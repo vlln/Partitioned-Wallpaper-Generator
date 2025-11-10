@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分区壁纸生成器</title>
+    <style>
+        :root {
+            --bg-color: #131313;
+            --sidebar-bg-color: #1A1A1A;
+            --panel-bg-color: #222222;
+            --text-color: #EAEAEA;
+            --text-color-secondary: #888888;
+            --border-color: #333333;
+            --border-hover-color: #555555;
+            --primary-color: #C7DB95;
+            --primary-hover-color: #d9e8b0;
+            --input-bg-color: #2a2a2a;
+            --danger-color: #EF8767;
+            --danger-hover-color: #f3a68f;
+            --selected-border-color: #FFE497;
+            
+            --font-family: 'Segoe UI', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            --transition-curve: cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-duration: 0.25s;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg-color);
+            font-family: var(--font-family);
+            color: var(--text-color);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 350px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg-color);
+            overflow-y: auto;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: width var(--transition-duration) var(--transition-curve);
+        }
+
+        .sidebar-header {
+            padding: 25px 30px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .sidebar-header h1 {
+            font-size: 22px;
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .sidebar-header p {
+            font-size: 14px;
+            margin: 0;
+            color: var(--text-color-secondary);
+        }
+
+        .sidebar-content {
+            padding: 15px 30px 30px 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            flex-grow: 1;
+        }
+
+        .canvas-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            overflow: hidden;
+            min-width: 0;
+        }
+        
+        #canvas {
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            background-color: #000;
+        }
+        
+        .panel {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            border-left: 2px solid transparent;
+            padding-left: 18px;
+            transition: all var(--transition-duration) var(--transition-curve);
+        }
+
+        .panel h3 {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-color-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .setting-group {
+            display: grid;
+            grid-template-columns: 90px 1fr;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .setting-group label {
+            font-size: 14px;
+            color: var(--text-color-secondary);
+            transition: color var(--transition-duration) var(--transition-curve);
+        }
+        .setting-group:focus-within label {
+            color: var(--text-color);
+        }
+        
+        .setting-group .info-span {
+            font-size: 14px;
+            color: var(--text-color);
+            padding: 10px;
+            background-color: var(--input-bg-color);
+            border-radius: 6px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .setting-group input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: var(--input-bg-color);
+            outline: none;
+            border-radius: 2px;
+            transition: opacity .2s;
+        }
+        .setting-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--text-color);
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all var(--transition-duration) var(--transition-curve);
+        }
+        .setting-group input[type="range"]::-webkit-slider-thumb:hover {
+            background: var(--primary-color);
+            transform: scale(1.1);
+        }
+        .setting-group input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--text-color);
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+
+        .setting-group input, .setting-group select {
+            background-color: var(--input-bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 14px;
+            width: 100%;
+            outline: none;
+            transition: all var(--transition-duration) var(--transition-curve);
+        }
+
+        .setting-group input:hover, .setting-group select:hover {
+             border-color: var(--border-hover-color);
+        }
+
+        .setting-group input:focus, .setting-group select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(199, 219, 149, 0.2);
+        }
+
+        .setting-group input[type="color"] {
+             padding: 4px; height: 42px; cursor: pointer;
+        }
+
+        input[type="file"] { display: none; }
+
+        .file-upload-label {
+            background-color: transparent;
+            color: var(--text-color-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition-duration) var(--transition-curve);
+        }
+        .file-upload-label:hover {
+            background-color: var(--input-bg-color);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        
+        button {
+            padding: 12px 15px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-color);
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            outline: none;
+            transition: all var(--transition-duration) var(--transition-curve);
+        }
+        
+        button:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+        
+        button.primary, #download-btn {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: var(--bg-color);
+        }
+        button.primary:hover, #download-btn:hover {
+             background: var(--primary-hover-color);
+             border-color: var(--primary-hover-color);
+             color: var(--bg-color);
+        }
+        
+        button.danger { border-color: transparent; background: var(--input-bg-color); color: var(--danger-color); }
+        button.danger:hover { background: var(--danger-color); border-color: var(--danger-color); color: white; }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            background-color: var(--input-bg-color);
+        }
+
+        .button-group { display: flex; gap: 10px; }
+
+        #zone-editor-panel {
+            max-height: 0;
+            overflow: hidden;
+            padding-left: 18px;
+            margin-left: -20px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.4s var(--transition-curve);
+        }
+
+        #zone-editor-panel.visible {
+            max-height: 300px;
+            opacity: 1;
+            transform: translateY(0);
+            border-left-color: var(--primary-color);
+            margin-left: 0;
+            padding-left: 18px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>分区壁纸生成器</h1>
+                <p>创建属于你的高效桌面布局</p>
+            </div>
+            <div class="sidebar-content">
+                <div id="global-settings-panel" class="panel">
+                    <h3>全局设置</h3>
+                    <div class="setting-group">
+                        <label for="resolution-select">分辨率</label>
+                        <select id="resolution-select">
+                            <option value="1366x768">1366 x 768 (16:9)</option>
+                            <option value="1600x900">1600 x 900 (16:9)</option>
+                            <option value="1920x1080">1920 x 1080 (16:9 HD)</option>
+                            <option value="1920x1200">1920 x 1200 (16:10)</option>
+                            <option value="2560x1080">2560 x 1080 (21:9 UW)</option>
+                            <option value="2560x1440">2560 x 1440 (16:9 QHD)</option>
+                            <option value="2560x1600" selected>2560 x 1600 (16:10)</option>
+                            <option value="3440x1440">3440 x 1440 (21:9 UW-QHD)</option>
+                            <option value="3840x2160">3840 x 2160 (16:9 4K)</option>
+                        </select>
+                    </div>
+                    <div class="setting-group">
+                        <label for="grid-density-input">网格密度 (Y)</label>
+                        <input type="range" id="grid-density-input" min="4" max="50" value="14">
+                    </div>
+                    <div class="setting-group">
+                        <label>网格数量</label>
+                        <span id="grid-dims-display" class="info-span">22 x 14</span>
+                    </div>
+                </div>
+
+                <div id="background-settings-panel" class="panel">
+                    <h3>背景</h3>
+                    <div class="setting-group">
+                        <label for="bg-color-input">背景颜色</label>
+                        <input type="color" id="bg-color-input">
+                    </div>
+                    <div class="setting-group">
+                        <label>背景图片</label>
+                        <label for="bg-image-input" class="file-upload-label">选择文件</label>
+                        <input type="file" id="bg-image-input" accept="image/*">
+                    </div>
+                </div>
+
+                <div id="zone-editor-panel" class="panel">
+                    <h3>编辑区域</h3>
+                    <div class="setting-group">
+                        <label for="zone-name-input">名称</label>
+                        <input type="text" id="zone-name-input">
+                    </div>
+                    <div class="setting-group">
+                        <label for="zone-color-input">区域颜色</label>
+                        <input type="color" id="zone-color-input">
+                    </div>
+                    <div class="setting-group">
+                        <label for="zone-textcolor-input">文字颜色</label>
+                        <input type="color" id="zone-textcolor-input">
+                    </div>
+                    <button id="delete-zone-btn" class="danger">删除此区域</button>
+                </div>
+
+                <div id="actions-panel" class="panel">
+                    <h3>操作</h3>
+                    <div class="button-group">
+                        <button id="add-zone-btn">创建新区域</button>
+                        <button id="reset-btn">重置布局</button>
+                    </div>
+                    <button id="download-btn">下载壁纸 (PNG)</button>
+                </div>
+
+            </div>
+        </div>
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
+        </div>
+    </div>
+    
+    <script>
+        // --- DOM Element References ---
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const resolutionSelect = document.getElementById('resolution-select');
+        const gridDensityInput = document.getElementById('grid-density-input');
+        const gridDimsDisplay = document.getElementById('grid-dims-display');
+        const bgColorInput = document.getElementById('bg-color-input');
+        const bgImageInput = document.getElementById('bg-image-input');
+        const zoneEditorPanel = document.getElementById('zone-editor-panel');
+        const zoneNameInput = document.getElementById('zone-name-input');
+        const zoneColorInput = document.getElementById('zone-color-input');
+        const zoneTextColorInput = document.getElementById('zone-textcolor-input');
+        const deleteZoneBtn = document.getElementById('delete-zone-btn');
+        const addZoneBtn = document.getElementById('add-zone-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        
+        // --- Utility Functions ---
+        const generateId = () => `zone_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const rgbaToHex = rgba => {
+            const parts = rgba.match(/[\d.]+/g);
+            if (!parts || parts.length < 3) return { hex: '#000000', alpha: 1 };
+            const r = parseInt(parts[0]), g = parseInt(parts[1]), b = parseInt(parts[2]);
+            const a = parts.length > 3 ? parseFloat(parts[3]) : 1;
+            return { hex: "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1), alpha: a };
+        };
+        const hexToRgba = (hex, alpha) => {
+            const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+        const hexToRgb = (hex) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+        };
+
+        // --- Application State ---
+        const state = {
+            resolution: { width: 2560, height: 1600 },
+            grid: { cols: 22, rows: 14 },
+            background: { type: 'color', value: '#131313' },
+            zones: [], 
+            interaction: {
+                isResizing: false,
+                isMovingZone: false,
+                resizeTarget: null, 
+                moveTargetId: null,
+                moveInitialPos: { x: 0, y: 0, proportionalCoords: {} },
+                handleSize: 8,
+                selectedZoneId: null
+            },
+            style: { // To hold colors from CSS for canvas drawing
+                primaryColor: '#C7DB95',
+                selectedBorderColor: '#FFE497'
+            }
+        };
+
+        function getDefaultZones() {
+            const defaultLogicalCols = 22;
+            const defaultLogicalRows = 10;
+            const zonesConfig = [
+                { name: 'Quick Access', coords: {top: 0, bottom: 4, left: 0, right: 5}, color: 'rgba(199, 219, 149, 0.1)', textColor: 'rgba(199, 219, 149, 0.7)' },
+                { name: 'Ready', coords: {top: 5, bottom: 9, left: 0, right: 5}, color: 'rgba(102, 187, 106, 0.1)', textColor: 'rgba(102, 187, 106, 0.7)' },
+                { name: 'Running', coords: {top: 0, bottom: 9, left: 6, right: 14}, color: 'rgba(255, 228, 151, 0.1)', textColor: 'rgba(255, 228, 151, 0.7)' },
+                { name: 'Blocked', coords: {top: 2, bottom: 6, left: 15, right: 21}, color: 'rgba(239, 135, 103, 0.1)', textColor: 'rgba(239, 135, 103, 0.7)' },
+                { name: 'Done', coords: {top: 7, bottom: 9, left: 15, right: 21}, color: 'rgba(126, 87, 194, 0.1)', textColor: 'rgba(126, 87, 194, 0.7)' }
+            ];
+
+            return zonesConfig.map(config => ({
+                id: generateId(),
+                name: config.name,
+                proportionalCoords: {
+                    p_left: config.coords.left / defaultLogicalCols,
+                    p_right: (config.coords.right + 1) / defaultLogicalCols,
+                    p_top: config.coords.top / defaultLogicalRows,
+                    p_bottom: (config.coords.bottom + 1) / defaultLogicalRows,
+                },
+                color: config.color,
+                textColor: config.textColor,
+            }));
+        }
+
+        // --- Rendering Engine ---
+        function render() {
+            canvas.width = state.resolution.width;
+            canvas.height = state.resolution.height;
+            
+            drawBackground();
+            drawGrid();
+            drawZones();
+        }
+
+        function drawBackground() {
+            ctx.fillStyle = state.background.value;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (state.background.type === 'image' && state.background.value instanceof HTMLImageElement) {
+                ctx.drawImage(state.background.value, 0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function drawZones() {
+            state.zones.forEach(zone => {
+                const { p_left, p_right, p_top, p_bottom } = zone.proportionalCoords;
+                const x = p_left * canvas.width;
+                const y = p_top * canvas.height;
+                const w = (p_right - p_left) * canvas.width;
+                const h = (p_bottom - p_top) * canvas.height;
+                
+                if (w < 1 || h < 1) return;
+
+                ctx.fillStyle = zone.color;
+                ctx.fillRect(x, y, w, h);
+                
+                const isSelected = zone.id === state.interaction.selectedZoneId;
+                
+                if (isSelected) {
+                    const rgb = hexToRgb(state.style.selectedBorderColor);
+                    if (rgb) {
+                        ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.5)`;
+                        ctx.lineWidth = 6;
+                        ctx.strokeRect(x, y, w, h); // Outer glow
+                    }
+                    ctx.strokeStyle = state.style.selectedBorderColor;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x, y, w, h); // Inner border
+                } else {
+                    ctx.strokeStyle = zone.textColor;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x, y, w, h);
+                }
+                
+                ctx.fillStyle = zone.textColor;
+                const fontSize = Math.max(24, Math.min(48, w / 8));
+                ctx.font = `600 ${fontSize}px ${getComputedStyle(document.body).fontFamily}`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(zone.name, x + w / 2, y + h / 2);
+            });
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            const cellWidth = canvas.width / state.grid.cols;
+            const cellHeight = canvas.height / state.grid.rows;
+            
+            for (let i = 1; i < state.grid.cols; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * cellWidth, 0);
+                ctx.lineTo(i * cellWidth, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 1; i < state.grid.rows; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellHeight);
+                ctx.lineTo(canvas.width, i * cellHeight);
+                ctx.stroke();
+            }
+        }
+        
+        // --- Interaction Logic ---
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return { x: (evt.clientX - rect.left) * scaleX, y: (evt.clientY - rect.top) * scaleY };
+        }
+        
+        function findZoneAtPos(mouseX, mouseY) {
+            for (let i = state.zones.length - 1; i >= 0; i--) {
+                const zone = state.zones[i];
+                const { p_left, p_right, p_top, p_bottom } = zone.proportionalCoords;
+                if (mouseX >= p_left * canvas.width && mouseX <= p_right * canvas.width && 
+                    mouseY >= p_top * canvas.height && mouseY <= p_bottom * canvas.height) {
+                    return zone;
+                }
+            }
+            return null;
+        }
+
+        function findDragTarget(mouseX, mouseY) {
+            const { handleSize } = state.interaction;
+            for (const zone of state.zones) {
+                const { p_left, p_right, p_top, p_bottom } = zone.proportionalCoords;
+                if (Math.abs(mouseX - p_right * canvas.width) < handleSize) return { type: 'v', prop: p_right };
+                if (Math.abs(mouseX - p_left * canvas.width) < handleSize) return { type: 'v', prop: p_left };
+                if (Math.abs(mouseY - p_bottom * canvas.height) < handleSize) return { type: 'h', prop: p_bottom };
+                if (Math.abs(mouseY - p_top * canvas.height) < handleSize) return { type: 'h', prop: p_top };
+            }
+            return null;
+        }
+
+        function handleDblClick(e) {
+            const pos = getMousePos(e);
+            const clickedZone = findZoneAtPos(pos.x, pos.y);
+            if (clickedZone) {
+                state.interaction.isMovingZone = true;
+                state.interaction.moveTargetId = clickedZone.id;
+                state.interaction.selectedZoneId = clickedZone.id;
+                state.interaction.moveInitialPos = { x: pos.x, y: pos.y, proportionalCoords: { ...clickedZone.proportionalCoords } };
+                canvas.style.cursor = 'move';
+                updateZoneEditorPanel();
+                render();
+            }
+        }
+
+        function handleMouseDown(e) {
+            if (state.interaction.isMovingZone) return;
+            const pos = getMousePos(e);
+            const resizeTarget = findDragTarget(pos.x, pos.y);
+
+            if (resizeTarget) {
+                state.interaction.isResizing = true;
+                state.interaction.resizeTarget = resizeTarget;
+                canvas.style.cursor = resizeTarget.type === 'v' ? 'ew-resize' : 'ns-resize';
+            } else {
+                const clickedZone = findZoneAtPos(pos.x, pos.y);
+                state.interaction.selectedZoneId = clickedZone ? clickedZone.id : null;
+                updateZoneEditorPanel();
+                render();
+            }
+        }
+
+        function handleMouseMove(e) {
+            const pos = getMousePos(e);
+            if (state.interaction.isResizing) {
+                const { type, prop } = state.interaction.resizeTarget;
+                const newProp = (type === 'v')
+                    ? Math.round(pos.x * state.grid.cols / canvas.width) / state.grid.cols
+                    : Math.round(pos.y * state.grid.rows / canvas.height) / state.grid.rows;
+                
+                updateZoneProportions(type, prop, newProp);
+                state.interaction.resizeTarget.prop = newProp;
+                render();
+            } else if (state.interaction.isMovingZone) {
+                const zone = state.zones.find(z => z.id === state.interaction.moveTargetId);
+                if (!zone) return;
+
+                const { x: startX, y: startY, proportionalCoords: startProps } = state.interaction.moveInitialPos;
+                const deltaXProp = (pos.x - startX) / canvas.width;
+                const deltaYProp = (pos.y - startY) / canvas.height;
+                
+                const widthProp = startProps.p_right - startProps.p_left;
+                const heightProp = startProps.p_bottom - startProps.p_top;
+                
+                let new_p_left = startProps.p_left + deltaXProp;
+                let new_p_top = startProps.p_top + deltaYProp;
+                
+                new_p_left = Math.round(new_p_left * state.grid.cols) / state.grid.cols;
+                new_p_top = Math.round(new_p_top * state.grid.rows) / state.grid.rows;
+
+                zone.proportionalCoords.p_left = Math.max(0, Math.min(1.0 - widthProp, new_p_left));
+                zone.proportionalCoords.p_right = zone.proportionalCoords.p_left + widthProp;
+                zone.proportionalCoords.p_top = Math.max(0, Math.min(1.0 - heightProp, new_p_top));
+                zone.proportionalCoords.p_bottom = zone.proportionalCoords.p_top + heightProp;
+
+                render();
+            } else {
+                const target = findDragTarget(pos.x, pos.y);
+                canvas.style.cursor = target ? (target.type === 'v' ? 'ew-resize' : 'ns-resize') : 'default';
+            }
+        }
+
+        function handleMouseUp(e) {
+            if (state.interaction.isResizing) {
+                state.interaction.isResizing = false;
+                state.interaction.resizeTarget = null;
+                handleMouseMove(e);
+            }
+        }
+
+        function handleCanvasClick(e) {
+            if (state.interaction.isMovingZone) {
+                state.interaction.isMovingZone = false;
+                state.interaction.moveTargetId = null;
+                canvas.style.cursor = 'default';
+            }
+        }
+        
+        function updateZoneProportions(type, oldProp, newProp) {
+            if (Math.abs(oldProp - newProp) < 1e-9) return;
+            const epsilon = 1e-5;
+
+            state.zones.forEach(zone => {
+                const { proportionalCoords: props } = zone;
+                if (type === 'v') {
+                    if (Math.abs(props.p_right - oldProp) < epsilon && newProp > props.p_left) props.p_right = newProp;
+                    if (Math.abs(props.p_left - oldProp) < epsilon && newProp < props.p_right) props.p_left = newProp;
+                } else {
+                    if (Math.abs(props.p_bottom - oldProp) < epsilon && newProp > props.p_top) props.p_bottom = newProp;
+                    if (Math.abs(props.p_top - oldProp) < epsilon && newProp < props.p_bottom) props.p_top = newProp;
+                }
+            });
+        }
+
+        // --- UI Control Logic ---
+        function updateGridDimensions() {
+            state.grid.rows = parseInt(gridDensityInput.value, 10);
+            const cellHeight = state.resolution.height / state.grid.rows;
+            const cellWidth = cellHeight;
+            state.grid.cols = Math.round(state.resolution.width / cellWidth);
+            
+            gridDimsDisplay.textContent = `${state.grid.cols} x ${state.grid.rows}`;
+        }
+
+        function handleResolutionChange() {
+            const [width, height] = resolutionSelect.value.split('x').map(Number);
+            state.resolution.width = width;
+            state.resolution.height = height;
+            updateGridDimensions();
+            render();
+        }
+
+        function handleGridDensityChange() {
+            updateGridDimensions();
+            render();
+        }
+        
+        function updateZoneEditorPanel() {
+            const selectedZone = state.zones.find(z => z.id === state.interaction.selectedZoneId);
+            if (selectedZone) {
+                zoneEditorPanel.classList.add('visible');
+                zoneNameInput.value = selectedZone.name;
+                zoneColorInput.value = rgbaToHex(selectedZone.color).hex;
+                zoneTextColorInput.value = rgbaToHex(selectedZone.textColor).hex;
+            } else {
+                zoneEditorPanel.classList.remove('visible');
+            }
+        }
+
+        function handleZoneEditorChange() {
+            const selectedZone = state.zones.find(z => z.id === state.interaction.selectedZoneId);
+            if (!selectedZone) return;
+            selectedZone.name = zoneNameInput.value;
+            selectedZone.color = hexToRgba(zoneColorInput.value, rgbaToHex(selectedZone.color).alpha);
+            selectedZone.textColor = hexToRgba(zoneTextColorInput.value, rgbaToHex(selectedZone.textColor).alpha);
+            render();
+        }
+        
+        function addNewZone() {
+            const newZone = {
+                id: generateId(), name: '新区域',
+                proportionalCoords: { 
+                    p_left: 1/state.grid.cols, p_right: 5/state.grid.cols,
+                    p_top: 1/state.grid.rows, p_bottom: 5/state.grid.rows 
+                },
+                color: 'rgba(200, 200, 200, 0.1)', textColor: 'rgba(200, 200, 200, 0.7)'
+            };
+            state.zones.push(newZone);
+            state.interaction.selectedZoneId = newZone.id;
+            updateZoneEditorPanel();
+            render();
+        }
+        
+        function deleteSelectedZone() {
+            if (!state.interaction.selectedZoneId) return;
+            state.zones = state.zones.filter(z => z.id !== state.interaction.selectedZoneId);
+            state.interaction.selectedZoneId = null;
+            updateZoneEditorPanel();
+            render();
+        }
+
+        async function downloadImage() {
+            const originalText = downloadBtn.textContent;
+            downloadBtn.textContent = '正在生成...';
+            downloadBtn.disabled = true;
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const currentSelection = state.interaction.selectedZoneId;
+            state.interaction.selectedZoneId = null;
+            render();
+
+            const link = document.createElement('a');
+            link.download = `wallpaper_${state.resolution.width}x${state.resolution.height}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            state.interaction.selectedZoneId = currentSelection;
+            render();
+
+            downloadBtn.textContent = originalText;
+            downloadBtn.disabled = false;
+        }
+
+        function resetLayout() {
+            const styles = getComputedStyle(document.documentElement);
+            state.resolution = { width: 2560, height: 1600 };
+            state.background = { type: 'color', value: styles.getPropertyValue('--bg-color').trim() || '#131313' };
+            
+            resolutionSelect.value = '2560x1600';
+            gridDensityInput.value = 14;
+            updateGridDimensions();
+            bgColorInput.value = state.background.value;
+            
+            state.zones = getDefaultZones();
+            state.interaction.selectedZoneId = null;
+            
+            updateZoneEditorPanel();
+            render();
+        }
+
+        function updateColorsFromCSS() {
+            const styles = getComputedStyle(document.documentElement);
+            state.style.primaryColor = styles.getPropertyValue('--primary-color').trim() || state.style.primaryColor;
+            state.style.selectedBorderColor = styles.getPropertyValue('--selected-border-color').trim() || state.style.selectedBorderColor;
+        }
+
+        function initialize() {
+            updateColorsFromCSS();
+            resetLayout();
+            
+            resolutionSelect.addEventListener('change', handleResolutionChange);
+            gridDensityInput.addEventListener('input', handleGridDensityChange);
+            [zoneNameInput, zoneColorInput, zoneTextColorInput].forEach(input => input.addEventListener('input', handleZoneEditorChange));
+
+            bgColorInput.addEventListener('input', e => {
+                state.background = { type: 'color', value: e.target.value };
+                bgImageInput.value = ''; // Clear file input
+                render();
+            });
+            bgImageInput.addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                        state.background = { type: 'image', value: img };
+                        render();
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            });
+
+            canvas.addEventListener('dblclick', handleDblClick);
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('click', handleCanvasClick);
+            
+            addZoneBtn.addEventListener('click', addNewZone);
+            deleteZoneBtn.addEventListener('click', deleteSelectedZone);
+            downloadBtn.addEventListener('click', downloadImage);
+            resetBtn.addEventListener('click', resetLayout);
+        }
+
+        initialize();
+    </script>
+</body>
+</html>
