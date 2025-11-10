@@ -547,12 +547,22 @@
 
         function findDragTarget(mouseX, mouseY) {
             const { handleSize } = state.interaction;
-            for (const zone of state.zones) {
+            // Iterate in reverse to check topmost zones first
+            for (let i = state.zones.length - 1; i >= 0; i--) {
+                const zone = state.zones[i];
                 const { p_left, p_right, p_top, p_bottom } = zone.proportionalCoords;
-                if (Math.abs(mouseX - p_right * canvas.width) < handleSize) return { type: 'v', prop: p_right };
-                if (Math.abs(mouseX - p_left * canvas.width) < handleSize) return { type: 'v', prop: p_left };
-                if (Math.abs(mouseY - p_bottom * canvas.height) < handleSize) return { type: 'h', prop: p_bottom };
-                if (Math.abs(mouseY - p_top * canvas.height) < handleSize) return { type: 'h', prop: p_top };
+                const w = canvas.width;
+                const h = canvas.height;
+
+                const left = p_left * w, right = p_right * w, top = p_top * h, bottom = p_bottom * h;
+
+                const inYRange = mouseY > top && mouseY < bottom;
+                const inXRange = mouseX > left && mouseX < right;
+
+                if (inYRange && Math.abs(mouseX - right) < handleSize) return { zoneId: zone.id, edge: 'right' };
+                if (inYRange && Math.abs(mouseX - left) < handleSize) return { zoneId: zone.id, edge: 'left' };
+                if (inXRange && Math.abs(mouseY - bottom) < handleSize) return { zoneId: zone.id, edge: 'bottom' };
+                if (inXRange && Math.abs(mouseY - top) < handleSize) return { zoneId: zone.id, edge: 'top' };
             }
             return null;
         }
@@ -579,7 +589,10 @@
             if (resizeTarget) {
                 state.interaction.isResizing = true;
                 state.interaction.resizeTarget = resizeTarget;
-                canvas.style.cursor = resizeTarget.type === 'v' ? 'ew-resize' : 'ns-resize';
+                state.interaction.selectedZoneId = resizeTarget.zoneId;
+                updateZoneEditorPanel();
+                render();
+                canvas.style.cursor = (resizeTarget.edge === 'left' || resizeTarget.edge === 'right') ? 'ew-resize' : 'ns-resize';
             } else {
                 const clickedZone = findZoneAtPos(pos.x, pos.y);
                 state.interaction.selectedZoneId = clickedZone ? clickedZone.id : null;
@@ -591,13 +604,31 @@
         function handleMouseMove(e) {
             const pos = getMousePos(e);
             if (state.interaction.isResizing) {
-                const { type, prop } = state.interaction.resizeTarget;
-                const newProp = (type === 'v')
-                    ? Math.round(pos.x * state.grid.cols / canvas.width) / state.grid.cols
-                    : Math.round(pos.y * state.grid.rows / canvas.height) / state.grid.rows;
+                const { zoneId, edge } = state.interaction.resizeTarget;
+                const zone = state.zones.find(z => z.id === zoneId);
+                if (!zone) return;
+
+                const props = zone.proportionalCoords;
+                const newXProp = Math.max(0, Math.min(1, Math.round(pos.x * state.grid.cols / canvas.width) / state.grid.cols));
+                const newYProp = Math.max(0, Math.min(1, Math.round(pos.y * state.grid.rows / canvas.height) / state.grid.rows));
                 
-                updateZoneProportions(type, prop, newProp);
-                state.interaction.resizeTarget.prop = newProp;
+                const minSizeX = 1 / state.grid.cols;
+                const minSizeY = 1 / state.grid.rows;
+
+                switch (edge) {
+                    case 'left':
+                        if (newXProp <= props.p_right - minSizeX) props.p_left = newXProp;
+                        break;
+                    case 'right':
+                        if (newXProp >= props.p_left + minSizeX) props.p_right = newXProp;
+                        break;
+                    case 'top':
+                        if (newYProp <= props.p_bottom - minSizeY) props.p_top = newYProp;
+                        break;
+                    case 'bottom':
+                        if (newYProp >= props.p_top + minSizeY) props.p_bottom = newYProp;
+                        break;
+                }
                 render();
             } else if (state.interaction.isMovingZone) {
                 const zone = state.zones.find(z => z.id === state.interaction.moveTargetId);
@@ -624,7 +655,7 @@
                 render();
             } else {
                 const target = findDragTarget(pos.x, pos.y);
-                canvas.style.cursor = target ? (target.type === 'v' ? 'ew-resize' : 'ns-resize') : 'default';
+                canvas.style.cursor = target ? ((target.edge === 'left' || target.edge === 'right') ? 'ew-resize' : 'ns-resize') : 'default';
             }
         }
 
@@ -632,7 +663,6 @@
             if (state.interaction.isResizing) {
                 state.interaction.isResizing = false;
                 state.interaction.resizeTarget = null;
-                handleMouseMove(e);
             }
         }
 
@@ -642,22 +672,6 @@
                 state.interaction.moveTargetId = null;
                 canvas.style.cursor = 'default';
             }
-        }
-        
-        function updateZoneProportions(type, oldProp, newProp) {
-            if (Math.abs(oldProp - newProp) < 1e-9) return;
-            const epsilon = 1e-5;
-
-            state.zones.forEach(zone => {
-                const { proportionalCoords: props } = zone;
-                if (type === 'v') {
-                    if (Math.abs(props.p_right - oldProp) < epsilon && newProp > props.p_left) props.p_right = newProp;
-                    if (Math.abs(props.p_left - oldProp) < epsilon && newProp < props.p_right) props.p_left = newProp;
-                } else {
-                    if (Math.abs(props.p_bottom - oldProp) < epsilon && newProp > props.p_top) props.p_bottom = newProp;
-                    if (Math.abs(props.p_top - oldProp) < epsilon && newProp < props.p_bottom) props.p_top = newProp;
-                }
-            });
         }
 
         // --- UI Control Logic ---
